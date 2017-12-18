@@ -103,7 +103,6 @@ public class MainActivity extends AppCompatActivity {
         Log.w("test D1", "D1 : " + descriptors[1].empty());
         matcher.match(descriptors[0], descriptors[1], matches);
 
-
         float dist_moy = 0;
         for(int i=0; i< matches.size(); i++) {
             Log.w("Calcul", "Calcul => " + dist_moy + "+" + matches.get(i).distance());
@@ -196,9 +195,8 @@ public class MainActivity extends AppCompatActivity {
             for(String filename : Path) {
                 Log.w("Name", "Name = " + filename);
                 File f = ToCache(this,  filename,filename);
-                Thread.sleep(1000);
                 Log.w("PATH", "Path2 :" + f.getPath());
-                float result = Compare(PickedImage, imread(f.getPath(), IMREAD_COLOR));
+                float result = Compare(PickedImage, imread(f.getPath()));
                 Log.w("Resultat", "Resultat pour " + filename + " : " + result);
             }
         }catch (Exception e){
