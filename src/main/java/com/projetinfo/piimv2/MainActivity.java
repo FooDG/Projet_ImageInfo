@@ -13,6 +13,8 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -44,8 +46,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        VolleyClient volleyClient = new VolleyClient(this);
-        volleyClient.getJSON(URL + "index.json");
+        final VolleyClient volleyClient = new VolleyClient(this);
 
         ImageView = findViewById(R.id.ImageViewer);
 
@@ -69,6 +70,14 @@ public class MainActivity extends AppCompatActivity {
         buttonAnalyser.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                volleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
+                volleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", "Pepsi.xml");
+
+
+                File f = v.getContext().getCacheDir();
+                for (File file: f.listFiles()) {
+                    Log.w("File in Cache :", file.getName());
+                }
             }
         });
     }
@@ -112,29 +121,4 @@ public class MainActivity extends AppCompatActivity {
         ImagePath = photoUri.getPath();
     }
 
-    public static File ToCache(Context context, String Path, String fileName) {
-        InputStream input;
-        FileOutputStream output;
-        byte[] buffer;
-        String filePath = context.getCacheDir() + "/" + fileName;
-        File file = new File(filePath);
-        Log.w("PATH", "Path :" + file.getPath());
-        AssetManager assetManager = context.getAssets();
-
-        try {
-            input = assetManager.open(Path);
-            buffer = new byte[input.available()];
-            input.read(buffer);
-            input.close();
-
-            output = new FileOutputStream(filePath);
-            output.write(buffer);
-            output.close();
-            return file;
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
 }
