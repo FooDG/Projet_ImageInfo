@@ -70,13 +70,13 @@ public class MainActivity extends AppCompatActivity {
         buttonAnalyser.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                volleyClient.getJSON("http://www-rech.telecom-lille.fr/nonfreesift/");
                 volleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
                 volleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", "Pepsi.xml");
 
-
                 File f = v.getContext().getCacheDir();
                 for (File file: f.listFiles()) {
-                    Log.w("File in Cache :", file.getName());
+                    Log.w("File in Cache :", file.getName().toString());
                 }
             }
         });
