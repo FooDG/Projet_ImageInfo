@@ -1,8 +1,6 @@
 package com.projetinfo.piimv2;
 
-import android.content.Context;
 import android.content.Intent;
-import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Bundle;
@@ -16,9 +14,20 @@ import android.widget.Toast;
 
 import com.android.volley.VolleyError;
 
+import org.apache.commons.io.IOUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.util.ArrayList;
+
 
 public class MainActivity extends AppCompatActivity {
     //User interaction
@@ -29,13 +38,8 @@ public class MainActivity extends AppCompatActivity {
     String URL = "http://http://www-rech.telecom-lille.fr/nonfreesift/";
 
     //Data return from Volley Client (Controller)
+    ArrayList<Brand> Brands;
 
-    //JavaCV parameters
-    int nFeatures = 0;
-    int nOctaveLayers = 3;
-    double contrastThreshold = 0.04;
-    int edgeThreshold = 10;
-    double sigma = 1.6;
 
     //Gui objects
     private Button buttonCapturer;
@@ -133,15 +137,20 @@ public class MainActivity extends AppCompatActivity {
     protected void getFilesFromVolley() throws JSONException {
         VolleyClient.getJSON("http://www-rech.telecom-lille.fr/nonfreesift/index.json", new ServerCallback() {
             @Override
-            public void OnSuccess(JSONObject JsonResponse) throws JSONException {
+            public void OnSuccess(JSONObject JsonResponse) throws Exception {
                 JSONArray JSONArr = JsonResponse.getJSONArray("brands");
                 for (int i=0; i<JSONArr.length(); i++){
-                    String filename = JSONArr.getJSONObject(i).getString("classifier");
-                    VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", filename);
-                    Log.w("File in Cache :", filename);
+                    String brandname = JSONArr.getJSONObject(i).getString("brandname");
+                    String url = JSONArr.getJSONObject(i).getString("url");
+                    String classifier = JSONArr.getJSONObject(i).getString("classifier");
+                    File classifierFile = cacheToFile(getCacheDir() + classifier);
 
-                    VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
+
+                    Brands.add(new Brand(brandname, url, classifierFile));
+                    VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", classifier);
+
                 }
+                VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
             }
 
             @Override
@@ -150,8 +159,14 @@ public class MainActivity extends AppCompatActivity {
                 success = false;
             }
         });
-
     }
 
-    
+    protected File cacheToFile(String path) throws Exception {
+        File file = new File(path);
+        FileInputStream IS = new FileInputStream(path);
+        OutputStream outputStream = new FileOutputStream(file);
+        IOUtils.copy(IS, outputStream);
+        outputStream.close();
+        return file;
+    }
 }

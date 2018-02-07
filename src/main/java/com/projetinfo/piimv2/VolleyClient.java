@@ -66,6 +66,8 @@ public class VolleyClient {
                     callback.OnSuccess(response);
                 } catch (JSONException e) {
                     e.printStackTrace();
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             }
         }, new Response.ErrorListener() {

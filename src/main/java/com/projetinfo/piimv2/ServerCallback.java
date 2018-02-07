@@ -12,6 +12,6 @@ import org.json.JSONObject;
 
 public interface ServerCallback{
     //Callbacks for the JSON request
-    void OnSuccess(JSONObject JsonResponse) throws JSONException;
+    void OnSuccess(JSONObject JsonResponse) throws Exception;
     void OnError(VolleyError error);
 }
