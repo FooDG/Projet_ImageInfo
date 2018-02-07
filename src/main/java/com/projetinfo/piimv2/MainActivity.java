@@ -12,12 +12,13 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import android.widget.Toast;
+
+import com.android.volley.VolleyError;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 
 public class MainActivity extends AppCompatActivity {
     //User interaction
@@ -26,6 +27,8 @@ public class MainActivity extends AppCompatActivity {
 
     //Volley parameters
     String URL = "http://http://www-rech.telecom-lille.fr/nonfreesift/";
+
+    //Data return from Volley Client (Controller)
 
     //JavaCV parameters
     int nFeatures = 0;
@@ -70,13 +73,10 @@ public class MainActivity extends AppCompatActivity {
         buttonAnalyser.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                volleyClient.getJSON("http://www-rech.telecom-lille.fr/nonfreesift/");
-                volleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
-                volleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", "Pepsi.xml");
-
-                File f = v.getContext().getCacheDir();
-                for (File file: f.listFiles()) {
-                    Log.w("File in Cache :", file.getName().toString());
+                try {
+                    getFilesFromVolley();
+                } catch (JSONException e) {
+                    e.printStackTrace();
                 }
             }
         });
@@ -121,4 +121,25 @@ public class MainActivity extends AppCompatActivity {
         ImagePath = photoUri.getPath();
     }
 
+    protected void getFilesFromVolley() throws JSONException {
+        VolleyClient.getJSON("http://www-rech.telecom-lille.fr/nonfreesift/index.json", new ServerCallback() {
+            @Override
+            public void OnSuccess(JSONObject JsonResponse) throws JSONException {
+                JSONArray JSONArr = JsonResponse.getJSONArray("brands");
+                for (int i=0; i<JSONArr.length(); i++){
+                    String filename = JSONArr.getJSONObject(i).getString("classifier");
+                    VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", filename);
+                    Log.w("File in Cache :", filename);
+
+                    VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
+                }
+            }
+
+            @Override
+            public void OnError(VolleyError error) {
+                Toast.makeText(getBaseContext(), "Can't get the information from server. Please check your internet connexion and retry.", Toast.LENGTH_LONG).show();
+            }
+        });
+
+    }
 }

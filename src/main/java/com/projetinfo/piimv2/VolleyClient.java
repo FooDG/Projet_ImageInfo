@@ -1,23 +1,25 @@
 package com.projetinfo.piimv2;
 
+//Import pour Android
 import android.content.Context;
 import android.content.res.AssetManager;
-import android.graphics.Bitmap;
-import android.os.SystemClock;
 import android.util.Log;
-import android.widget.ImageView;
+import android.widget.Toast;
 
+//Import pour Volley
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
-import com.android.volley.toolbox.ImageRequest;
 import com.android.volley.toolbox.JsonObjectRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 
+//Import pour le JSON
+import org.json.JSONException;
 import org.json.JSONObject;
 
+//Import pour les fichiers
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -25,17 +27,13 @@ import java.io.InputStream;
 
 
 public class VolleyClient {
-    private Context context;
+    private static Context context;
     private static  RequestQueue myQueue;
     private static String Response;
-    private static Bitmap BitmapResponse;
-    private static boolean hasFailed;
-    private static JSONObject jsonResponse;
-
 
     private StringRequest stringRequest;
-    private JsonObjectRequest JsonObjectRequest;
-    private FileRequest fileRequest;
+    private static JsonObjectRequest JsonObjectRequest;
+    private static FileRequest fileRequest;
 
     public VolleyClient(Context context){
         this.context = context;
@@ -59,33 +57,37 @@ public class VolleyClient {
         return Response;
     }
 
-    public String getJSON(String URL) {
+
+    public static void getJSON(String URL, final ServerCallback callback) {
         JsonObjectRequest = new JsonObjectRequest(Request.Method.GET, URL, null, new Response.Listener<JSONObject>() {
             @Override
             public void onResponse(JSONObject response) {
-                Response = response.toString();
+                try {
+                    callback.OnSuccess(response);
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
             }
         }, new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                Response = error.toString();
-                Log.w("Error :: ", Response);
+                callback.OnError(error);
+                Log.w("Connection error", "Erreur pas de connexion");
             }
         });
         myQueue.add(JsonObjectRequest);
-        return Response;
     }
 
-    public void getFile(String path, final String filename){
+    public static void getFile(String path, final String filename){
         String URL = path + filename;
 
         fileRequest = new FileRequest(Request.Method.GET, URL, new Response.Listener<byte[]>(){
             @Override
             public void onResponse(byte[] response) {
                 try{
-                   FileOutputStream fos;
-                   String outputPath = context.getCacheDir().getPath() + "/" + filename;
-                   Log.w("Cache path ", outputPath);
+                    FileOutputStream fos;
+                    String outputPath = context.getCacheDir().getPath() + "/" + filename;
+                    Log.w("Cache path ", outputPath);
                     fos = new FileOutputStream(outputPath);
                     fos.write(response);
                     fos.close();
@@ -96,7 +98,7 @@ public class VolleyClient {
         },new Response.ErrorListener() {
             @Override
             public void onErrorResponse(VolleyError error) {
-                Log.w("Error :: ", error.toString());
+                Toast.makeText(context, "Can't get the information from server. Please check your internet connexion and retry.", Toast.LENGTH_LONG).show();
             }
         }, null);
 
