@@ -44,6 +44,9 @@ public class MainActivity extends AppCompatActivity {
     private ImageView ImageView;
     private String ImagePath;
 
+    //boolean for testing process
+    static boolean success;
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -73,10 +76,16 @@ public class MainActivity extends AppCompatActivity {
         buttonAnalyser.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+                success = true;
                 try {
                     getFilesFromVolley();
                 } catch (JSONException e) {
                     e.printStackTrace();
+                }
+
+                //Si la recuperation des données distantes est reussie
+                if (success) {
+
                 }
             }
         });
@@ -138,8 +147,11 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void OnError(VolleyError error) {
                 Toast.makeText(getBaseContext(), "Can't get the information from server. Please check your internet connexion and retry.", Toast.LENGTH_LONG).show();
+                success = false;
             }
         });
 
     }
+
+    
 }
