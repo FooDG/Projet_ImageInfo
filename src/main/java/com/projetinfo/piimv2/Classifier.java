@@ -2,14 +2,20 @@ package com.projetinfo.piimv2;
 
 import android.util.Log;
 
+import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.Pointer;
+import org.bytedeco.javacpp.indexer.FloatRawIndexer;
 import org.bytedeco.javacpp.opencv_core;
+import org.bytedeco.javacpp.opencv_imgcodecs;
+import org.bytedeco.javacpp.opencv_imgproc;
 import org.bytedeco.javacpp.opencv_ml;
 import org.bytedeco.javacpp.opencv_xfeatures2d;
 
 import java.io.File;
 import java.util.ArrayList;
 
+import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
+import static org.bytedeco.javacpp.opencv_ml.SVM.C_SVC;
 import static org.bytedeco.javacpp.opencv_xfeatures2d.*;
 import static org.bytedeco.javacpp.opencv_features2d.*;
 import static org.bytedeco.javacpp.opencv_core.*;
@@ -31,7 +37,7 @@ public class Classifier {
 
 
     //Image de l'ImageView
-    Mat Img;
+    String ImgPath;
 
     //Données du JSON
     ArrayList<Brand> brands;
@@ -39,15 +45,27 @@ public class Classifier {
     //Données du Vocabulary
     CvFileStorage cv = new CvFileStorage();
 
-    public Classifier(Mat img, ArrayList<Brand> brands) {
-        Img = img;
+    public Classifier(String ImgPath, ArrayList<Brand> brands) {
+        this.ImgPath = ImgPath;
         this.brands = brands;
     }
 
-    public void ProceedtoComparaison(String vocabularyFilePath, ArrayList<Brand> Brands){
-        FileStorage fileStorage = new opencv_core.FileStorage(vocabularyFilePath, opencv_core.FileStorage.FORMAT_YAML);
-        Pointer pointer = new Pointer(fileStorage);
-        opencv_core.Mat Vocabulary = new opencv_core.Mat(pointer);
+    public void ProceedtoComparaison(File vocabularyFile, ArrayList<Brand> Brands){
+        Loader.load(opencv_core.class);
+        if (vocabularyFile.exists()){
+            Log.w("exists ?", "il existe !");
+        }else
+        {
+            Log.w("exists ?", "il existe pas !");
+        }
+
+        //Creation du vocabulaire
+        CvFileStorage fileStorage = cvOpenFileStorage(vocabularyFile.getAbsolutePath(), null, CV_STORAGE_READ);
+        Pointer pointer = opencv_core.cvReadByName(fileStorage, null, "vocabulary", opencv_core.cvAttrList());
+        opencv_core.CvMat cvMat = new opencv_core.CvMat(pointer);
+        Mat vocabulary = new opencv_core.Mat(cvMat);
+        Log.w("VOCAB", "vocabulary loaded " + vocabulary.rows() + " x " + vocabulary.cols());
+        opencv_core.cvReleaseFileStorage(fileStorage);
 
         final opencv_xfeatures2d.SIFT detector;
         detector = SIFT.create(this.nFeatures, this.nOctaveLayers, this.contrastThreshold, this.edgeThreshold, this.sigma);
@@ -57,43 +75,55 @@ public class Classifier {
 
         final BOWImgDescriptorExtractor bowide;
         bowide = new BOWImgDescriptorExtractor(detector, matcher);
-        bowide.setVocabulary(Vocabulary);
+        bowide.setVocabulary(vocabulary);
+
+        //Creation de l'histogram pour l'image à comparer
+        Mat descriptorImg;
+        KeyPointVector keypoints = new KeyPointVector();
+
+        Mat Img = opencv_imgcodecs.imread(ImgPath, opencv_imgcodecs.CV_LOAD_IMAGE_GRAYSCALE);
+
+        if(Img.empty()){
+            Log.w("Empty ?", "OUI ELLE EST VIDE !!! ");
+        }
+
+        detector.detect(Img, keypoints);
+
+        Mat HistoImg = new Mat();
+        bowide.compute(Img, keypoints,HistoImg, new IntVectorVector(),new Mat());
+
+        if(HistoImg.empty()){
+            Log.w("Empty ?", "OUI ELLE EST VIDE !!! ");
+        }
+
+        float minF = Float.MAX_VALUE;
+        String bestMatch = null;
 
         final opencv_ml.SVM[] classifiers;
         classifiers = new opencv_ml.SVM[Brands.size()];
 
-        KeyPointVector keypoints = new KeyPointVector();
-        Mat inputDescriptors = new Mat();
-
         for (int i = 0 ; i < Brands.size() ; i++) {
-            Mat response_hist = new Mat();
-            FileStorage BrandFS = new FileStorage();
-            BrandFS.open(Brands.get(i).getClassifier().getAbsolutePath(),CV_STORAGE_READ);
-            Pointer BrandPointer = new Pointer(BrandFS);
-            classifiers[i] = new opencv_ml.SVM(BrandPointer);
-            Mat imgTest = new Mat(BrandPointer);
+            classifiers[i] = opencv_ml.SVM.create();
+            classifiers[i] = opencv_ml.SVM.load(Brands.get(i).XMLclassifier.getAbsolutePath());
+            Log.w("Var count => ", classifiers[i].getVarCount() + "");
 
-            detector.detectAndCompute(imgTest, Mat.EMPTY, keypoints, inputDescriptors);
-            bowide.compute(imgTest, keypoints,response_hist);
+            Mat resultMat = new Mat();
+            float result = classifiers[i].predict(HistoImg, resultMat, 1 );
+            FloatRawIndexer indexer = resultMat.createIndexer();
 
-            // Finding best match
-            float minf = Float.MAX_VALUE;
-            String bestMatch = null;
-
-            long timePrediction = System.currentTimeMillis();
-            for (int j = 0; j < Brands.size(); i++) {
-                // classifier prediction based on reconstructed histogram
-                float res = classifiers[i].predict(response_hist);
-                //System.out.println(class_names[i] + " is " + res);
-                if (res < minf) {
-                    minf = res;
-                    bestMatch = Brands.get(j).getBrandName();
-                }
+            if (resultMat.cols() > 0 && resultMat.rows() > 0){
+                result = indexer.get(0,0);
             }
-            timePrediction = System.currentTimeMillis() - timePrediction;
-            Log.w("", "Predicted as " + bestMatch + " in " + timePrediction + " ms");
 
+            if (result < minF) {
+                minF = result;
+                bestMatch = Brands.get(i).getBrandName();
+            }
         }
+        Log.w("|-> ", "best match is " + bestMatch );
+
 
     }
+
+
 }

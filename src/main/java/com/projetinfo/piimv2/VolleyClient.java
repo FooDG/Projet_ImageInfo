@@ -74,7 +74,6 @@ public class VolleyClient {
             @Override
             public void onErrorResponse(VolleyError error) {
                 callback.OnError(error);
-                Log.w("Connection error", "Erreur pas de connexion");
             }
         });
         myQueue.add(JsonObjectRequest);
@@ -89,7 +88,6 @@ public class VolleyClient {
                 try{
                     FileOutputStream fos;
                     String outputPath = context.getCacheDir().getPath() + "/" + filename;
-                    Log.w("Cache path ", outputPath);
                     fos = new FileOutputStream(outputPath);
                     fos.write(response);
                     fos.close();

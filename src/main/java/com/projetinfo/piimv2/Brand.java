@@ -10,12 +10,12 @@ import java.util.ArrayList;
 public class Brand {
     String brandName;
     String url;
-    File classifier;
+    File XMLclassifier;
 
     public Brand(String brandName, String url, File classifier) {
         this.brandName = brandName;
         this.url = url;
-        this.classifier = classifier;
+        this.XMLclassifier = classifier;
     }
 
     public String getBrandName() {
@@ -35,10 +35,11 @@ public class Brand {
     }
 
     public File getClassifier() {
-        return classifier;
+        return XMLclassifier;
     }
 
     public void setClassifier(File classifier) {
-        this.classifier = classifier;
+        this.XMLclassifier = classifier;
     }
+
 }

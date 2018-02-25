@@ -1,7 +1,9 @@
 package com.projetinfo.piimv2;
 
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
+import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -14,19 +16,21 @@ import android.widget.Toast;
 
 import com.android.volley.VolleyError;
 
-import org.apache.commons.io.IOUtils;
+import org.bytedeco.javacpp.Loader;
+import org.bytedeco.javacpp.opencv_core;
+import org.bytedeco.javacpp.opencv_imgcodecs;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
+
+import static org.bytedeco.javacpp.opencv_imgcodecs.CV_LOAD_IMAGE_GRAYSCALE;
+import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
 
 
 public class MainActivity extends AppCompatActivity {
@@ -38,7 +42,7 @@ public class MainActivity extends AppCompatActivity {
     String URL = "http://http://www-rech.telecom-lille.fr/nonfreesift/";
 
     //Data return from Volley Client (Controller)
-    ArrayList<Brand> Brands;
+    ArrayList<Brand> Brands = new ArrayList<>();
 
 
     //Gui objects
@@ -50,11 +54,21 @@ public class MainActivity extends AppCompatActivity {
 
     //boolean for testing process
     static boolean success;
+    static boolean remote_resources_available;
+
+    //image to analyse and compare
+    File image = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        Loader.load(opencv_core.class);
+
+        if(!getCacheDir().exists()){
+            getCacheDir().mkdirs();
+            Log.w("CacheDir", "Creation du cache");
+        }
 
         final VolleyClient volleyClient = new VolleyClient(this);
 
@@ -76,6 +90,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+        remote_resources_available = false;
         buttonAnalyser = findViewById(R.id.Analyser);
         buttonAnalyser.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -86,18 +101,44 @@ public class MainActivity extends AppCompatActivity {
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
-
-                //Si la recuperation des données distantes est reussie
-                if (success) {
-
-                }
             }
         });
     }
 
+    protected void onDestroy(){
+        super.onDestroy();
+        success = false;
+        remote_resources_available = false;
+        try {
+            File dir = getCacheDir();
+            deleteDir(dir);
+        } catch (Exception e) {}
+    }
+
+    public static boolean deleteDir(File dir) {
+        if (dir != null && dir.isDirectory()) {
+            String[] children = dir.list();
+            for (int i = 0; i < children.length; i++) {
+                boolean cache_success = deleteDir(new File(dir, children[i]));
+                if (!cache_success) {
+                    return false;
+                }
+            }
+            return dir.delete();
+        } else if(dir!= null && dir.isFile()) {
+            return dir.delete();
+        } else {
+            return false;
+        }
+    }
+
     protected void onActivityResult(int requestCode, int resultCode, Intent intent){
         if(requestCode == PHOTO_LIB_REQUEST && resultCode == RESULT_OK){
-            processPhotoLibraryResult(intent);
+            try {
+                processPhotoLibraryResult(intent);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
         if(requestCode == IMAGE_CAPTURE_REQUEST && resultCode == RESULT_OK){
             processPhotoCaptureResult(intent);
@@ -112,10 +153,11 @@ public class MainActivity extends AppCompatActivity {
         startActivityForResult(Intent.createChooser(photoLibraryIntent, "Pick a Picture !"), PHOTO_LIB_REQUEST);
     }
 
-    protected void processPhotoLibraryResult(Intent intent) {
+    protected void processPhotoLibraryResult(Intent intent) throws IOException {
         Uri photoUri = intent.getData();
         ImageView.setImageURI(photoUri);
         ImagePath = photoUri.getPath();
+        this.image = File.createTempFile("TempImage", ".jpg",getCacheDir());
     }
 
     protected  void  startPhotoCaptureActivity(){
@@ -134,39 +176,72 @@ public class MainActivity extends AppCompatActivity {
         ImagePath = photoUri.getPath();
     }
 
-    protected void getFilesFromVolley() throws JSONException {
+    protected void getFilesFromVolley() throws JSONException{
+
         VolleyClient.getJSON("http://www-rech.telecom-lille.fr/nonfreesift/index.json", new ServerCallback() {
             @Override
             public void OnSuccess(JSONObject JsonResponse) throws Exception {
-                JSONArray JSONArr = JsonResponse.getJSONArray("brands");
-                for (int i=0; i<JSONArr.length(); i++){
-                    String brandname = JSONArr.getJSONObject(i).getString("brandname");
-                    String url = JSONArr.getJSONObject(i).getString("url");
-                    String classifier = JSONArr.getJSONObject(i).getString("classifier");
-                    File classifierFile = cacheToFile(getCacheDir() + classifier);
 
+                if(remote_resources_available == false) {
+                    JSONArray JSONArr = JsonResponse.getJSONArray("brands");
+                    Log.w("JSON DATA", JSONArr.length() + "");
+                    for (int i = 0; i < JSONArr.length(); i++) {
+                        String brandname = JSONArr.getJSONObject(i).getString("brandname");
+                        Log.w("Brand", brandname);
+                        String url = JSONArr.getJSONObject(i).getString("url");
+                        Log.w("Brand", url);
+                        String classifier = JSONArr.getJSONObject(i).getString("classifier");
+                        Log.w("Brand", classifier);
+                        VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", classifier);
+                        Brands.add(new Brand(brandname, url, new File(getCacheDir(), classifier)));
+                    }
 
-                    Brands.add(new Brand(brandname, url, classifierFile));
-                    VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", classifier);
-
+                    VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
+                    remote_resources_available = true;
                 }
-                VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
+                String ImagePath = BitmapToFile(((BitmapDrawable) ImageView.getDrawable()).getBitmap()).getAbsolutePath();
+                Log.w("Bitmap cached path", ImagePath);
+                Log.w("TEST IMREAD", imread(ImagePath).empty() + "");
+                Classifier classifier = new Classifier(ImagePath, Brands);
+
+                for (String file : new File(getCacheDir().getAbsolutePath()).list()){
+                    Log.w("CACHE files", file);
+                }
+                File vocab = new File(getCacheDir(), "vocabulary.yml");
+
+                if(vocab.exists()) {
+                    Log.w("Vocab path", vocab.getAbsolutePath());
+                    classifier.ProceedtoComparaison(vocab, Brands);
+                }
             }
 
             @Override
             public void OnError(VolleyError error) {
-                Toast.makeText(getBaseContext(), "Can't get the information from server. Please check your internet connexion and retry.", Toast.LENGTH_LONG).show();
+                Toast.makeText(getBaseContext(), error.toString(), Toast.LENGTH_LONG).show();
                 success = false;
+                remote_resources_available = false;
             }
         });
     }
 
-    protected File cacheToFile(String path) throws Exception {
-        File file = new File(path);
-        FileInputStream IS = new FileInputStream(path);
-        OutputStream outputStream = new FileOutputStream(file);
-        IOUtils.copy(IS, outputStream);
-        outputStream.close();
-        return file;
+    File BitmapToFile(Bitmap bitmap) throws IOException {
+
+        //create a file to write bitmap data
+        this.image = new File(this.getCacheDir(), "imagefile");
+        //this.image.createNewFile();
+
+        //Convert bitmap to byte array
+        Bitmap bmap = bitmap;
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        bmap.compress(Bitmap.CompressFormat.PNG, 0 /*ignored for PNG*/, bos);
+        byte[] bitmapdata = bos.toByteArray();
+
+        //write the bytes in file
+        FileOutputStream fos = new FileOutputStream(this.image);
+        fos.write(bitmapdata);
+        fos.flush();
+        fos.close();
+
+        return this.image;
     }
 }
