@@ -39,7 +39,7 @@ public class MainActivity extends AppCompatActivity {
     final int IMAGE_CAPTURE_REQUEST = 2;
 
     //Volley parameters
-    String URL = "http://http://www-rech.telecom-lille.fr/nonfreesift/";
+    String URL = "http://www-rech.telecom-lille.fr/freeorb/";
 
     //Data return from Volley Client (Controller)
     ArrayList<Brand> Brands = new ArrayList<>();
@@ -58,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
 
     //image to analyse and compare
     File image = null;
+    Brand matchedResult= null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -95,12 +96,13 @@ public class MainActivity extends AppCompatActivity {
         buttonAnalyser.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                success = true;
+
                 try {
                     getFilesFromVolley();
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
+
             }
         });
     }
@@ -178,10 +180,11 @@ public class MainActivity extends AppCompatActivity {
 
     protected void getFilesFromVolley() throws JSONException{
 
-        VolleyClient.getJSON("http://www-rech.telecom-lille.fr/nonfreesift/index.json", new ServerCallback() {
+        VolleyClient.getJSON(URL + "index.json", new ServerCallback() {
             @Override
             public void OnSuccess(JSONObject JsonResponse) throws Exception {
-
+                buttonAnalyser.setEnabled(false);
+                buttonAnalyser.setText(R.string.analyseEnCours);
                 if(remote_resources_available == false) {
                     JSONArray JSONArr = JsonResponse.getJSONArray("brands");
                     Log.w("JSON DATA", JSONArr.length() + "");
@@ -192,16 +195,15 @@ public class MainActivity extends AppCompatActivity {
                         Log.w("Brand", url);
                         String classifier = JSONArr.getJSONObject(i).getString("classifier");
                         Log.w("Brand", classifier);
-                        VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/classifiers/", classifier);
+                        VolleyClient.getFile(URL + "classifiers/", classifier);
                         Brands.add(new Brand(brandname, url, new File(getCacheDir(), classifier)));
                     }
 
-                    VolleyClient.getFile("http://www-rech.telecom-lille.fr/nonfreesift/", "vocabulary.yml");
+                    VolleyClient.getFile(URL, "vocabulary.yml");
                     remote_resources_available = true;
                 }
                 String ImagePath = BitmapToFile(((BitmapDrawable) ImageView.getDrawable()).getBitmap()).getAbsolutePath();
-                Log.w("Bitmap cached path", ImagePath);
-                Log.w("TEST IMREAD", imread(ImagePath).empty() + "");
+
                 Classifier classifier = new Classifier(ImagePath, Brands);
 
                 for (String file : new File(getCacheDir().getAbsolutePath()).list()){
@@ -210,15 +212,18 @@ public class MainActivity extends AppCompatActivity {
                 File vocab = new File(getCacheDir(), "vocabulary.yml");
 
                 if(vocab.exists()) {
-                    Log.w("Vocab path", vocab.getAbsolutePath());
-                    classifier.ProceedtoComparaison(vocab, Brands);
+                    matchedResult = classifier.ProceedtoComparaison(vocab, Brands);
+                    Toast.makeText(getBaseContext(), "Il s'agit de la marque : " + matchedResult.getBrandName(), Toast.LENGTH_LONG).show();
+
                 }
+
+                buttonAnalyser.setEnabled(true);
+                buttonAnalyser.setText(R.string.analyser);
             }
 
             @Override
             public void OnError(VolleyError error) {
-                Toast.makeText(getBaseContext(), error.toString(), Toast.LENGTH_LONG).show();
-                success = false;
+                Toast.makeText(getBaseContext(), "Impossible de contacter le serveur distant. Veuillez vérifier vos paramètres de connexion", Toast.LENGTH_LONG).show();
                 remote_resources_available = false;
             }
         });

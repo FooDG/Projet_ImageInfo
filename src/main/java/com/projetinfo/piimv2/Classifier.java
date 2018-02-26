@@ -14,6 +14,8 @@ import org.bytedeco.javacpp.opencv_xfeatures2d;
 import java.io.File;
 import java.util.ArrayList;
 
+import static org.bytedeco.javacpp.opencv_imgcodecs.IMREAD_ANYCOLOR;
+import static org.bytedeco.javacpp.opencv_imgcodecs.IMREAD_GRAYSCALE;
 import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
 import static org.bytedeco.javacpp.opencv_ml.SVM.C_SVC;
 import static org.bytedeco.javacpp.opencv_xfeatures2d.*;
@@ -50,7 +52,7 @@ public class Classifier {
         this.brands = brands;
     }
 
-    public void ProceedtoComparaison(File vocabularyFile, ArrayList<Brand> Brands){
+    public Brand ProceedtoComparaison(File vocabularyFile, ArrayList<Brand> Brands){
         Loader.load(opencv_core.class);
         if (vocabularyFile.exists()){
             Log.w("exists ?", "il existe !");
@@ -81,20 +83,13 @@ public class Classifier {
         Mat descriptorImg;
         KeyPointVector keypoints = new KeyPointVector();
 
-        Mat Img = opencv_imgcodecs.imread(ImgPath, opencv_imgcodecs.CV_LOAD_IMAGE_GRAYSCALE);
-
-        if(Img.empty()){
-            Log.w("Empty ?", "OUI ELLE EST VIDE !!! ");
-        }
+        Mat Img = opencv_imgcodecs.imread(ImgPath, IMREAD_GRAYSCALE);
 
         detector.detect(Img, keypoints);
 
         Mat HistoImg = new Mat();
         bowide.compute(Img, keypoints,HistoImg, new IntVectorVector(),new Mat());
 
-        if(HistoImg.empty()){
-            Log.w("Empty ?", "OUI ELLE EST VIDE !!! ");
-        }
 
         float minF = Float.MAX_VALUE;
         String bestMatch = null;
@@ -122,7 +117,14 @@ public class Classifier {
         }
         Log.w("|-> ", "best match is " + bestMatch );
 
+        Brand brandItemToReturn = null;
+        for (Brand b : Brands){
+            if (b.getBrandName() == bestMatch){
+                brandItemToReturn = b;
+            }
+        }
 
+        return brandItemToReturn;
     }
 
 
