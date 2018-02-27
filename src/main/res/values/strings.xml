@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">PIIMv2</string>
+    <string name="Click">Click</string>
+    <string name="capturer">Capturer</string>
+    <string name="galerie">Galerie</string>
+    <string name="analyser">Analyser</string>
+    <string name="volleyError">Impossible de contacter le serveur. Veuillez vérifier vos paramètres de connexion.</string>
+    <string name="analyseEnCours">Analyse en cours...</string>
 </resources>
