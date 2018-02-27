@@ -1,12 +1,16 @@
 package com.projetinfo.piimv2;
 
+import android.app.Activity;
 import android.content.Context;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.MediaStore;
+import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
 import android.view.View;
@@ -15,6 +19,7 @@ import android.widget.ImageView;
 import android.widget.Toast;
 
 import com.android.volley.VolleyError;
+import com.soundcloud.android.crop.Crop;
 
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.opencv_core;
@@ -68,7 +73,6 @@ public class MainActivity extends AppCompatActivity {
 
         if(!getCacheDir().exists()){
             getCacheDir().mkdirs();
-            Log.w("CacheDir", "Creation du cache");
         }
 
         final VolleyClient volleyClient = new VolleyClient(this);
@@ -92,17 +96,21 @@ public class MainActivity extends AppCompatActivity {
         });
 
         remote_resources_available = false;
-        buttonAnalyser = findViewById(R.id.Analyser);
+        buttonAnalyser = (Button) findViewById(R.id.Analyser);
         buttonAnalyser.setOnClickListener(new View.OnClickListener() {
+
+
             @Override
             public void onClick(View v) {
+                buttonAnalyser = (Button) findViewById(R.id.Analyser);
+                buttonAnalyser.setText(R.string.analyseEnCours);
+                buttonAnalyser.setEnabled(false);
 
                 try {
                     getFilesFromVolley();
                 } catch (JSONException e) {
                     e.printStackTrace();
                 }
-
             }
         });
     }
@@ -145,19 +153,28 @@ public class MainActivity extends AppCompatActivity {
         if(requestCode == IMAGE_CAPTURE_REQUEST && resultCode == RESULT_OK){
             processPhotoCaptureResult(intent);
         }
+
+        if (requestCode == Crop.REQUEST_PICK && resultCode == RESULT_OK) {
+            beginCrop(intent.getData());
+        } else if (requestCode == Crop.REQUEST_CROP) {
+            handleCrop(resultCode, intent);
+        }
     }
 
     protected void startPhotoLibraryActivity(){
         Intent photoLibraryIntent;
         photoLibraryIntent = new Intent();
-        photoLibraryIntent.setType("image/*");
+        /*photoLibraryIntent.setType("image/*");
         photoLibraryIntent.setAction(Intent.ACTION_GET_CONTENT);
-        startActivityForResult(Intent.createChooser(photoLibraryIntent, "Pick a Picture !"), PHOTO_LIB_REQUEST);
+        startActivityForResult(Intent.createChooser(photoLibraryIntent, "Pick a Picture !"), PHOTO_LIB_REQUEST);*/
+
+        Crop.pickImage(this);
     }
 
     protected void processPhotoLibraryResult(Intent intent) throws IOException {
         Uri photoUri = intent.getData();
         ImageView.setImageURI(photoUri);
+
         ImagePath = photoUri.getPath();
         this.image = File.createTempFile("TempImage", ".jpg",getCacheDir());
     }
@@ -175,7 +192,7 @@ public class MainActivity extends AppCompatActivity {
         ImageView.setImageBitmap(image);
 
         Uri photoUri = intent.getData();
-        ImagePath = photoUri.getPath();
+        beginCrop(photoUri);
     }
 
     protected void getFilesFromVolley() throws JSONException{
@@ -183,8 +200,10 @@ public class MainActivity extends AppCompatActivity {
         VolleyClient.getJSON(URL + "index.json", new ServerCallback() {
             @Override
             public void OnSuccess(JSONObject JsonResponse) throws Exception {
-                buttonAnalyser.setEnabled(false);
-                buttonAnalyser.setText(R.string.analyseEnCours);
+
+                buttonAnalyser = findViewById(R.id.Analyser);
+                buttonAnalyser.setText("Analyse en cours...");
+
                 if(remote_resources_available == false) {
                     JSONArray JSONArr = JsonResponse.getJSONArray("brands");
                     Log.w("JSON DATA", JSONArr.length() + "");
@@ -213,8 +232,7 @@ public class MainActivity extends AppCompatActivity {
 
                 if(vocab.exists()) {
                     matchedResult = classifier.ProceedtoComparaison(vocab, Brands);
-                    Toast.makeText(getBaseContext(), "Il s'agit de la marque : " + matchedResult.getBrandName(), Toast.LENGTH_LONG).show();
-
+                    openBrandLink(matchedResult);
                 }
 
                 buttonAnalyser.setEnabled(true);
@@ -225,8 +243,34 @@ public class MainActivity extends AppCompatActivity {
             public void OnError(VolleyError error) {
                 Toast.makeText(getBaseContext(), "Impossible de contacter le serveur distant. Veuillez vérifier vos paramètres de connexion", Toast.LENGTH_LONG).show();
                 remote_resources_available = false;
+
+                buttonAnalyser = findViewById(R.id.Analyser);
+                buttonAnalyser.setEnabled(true);
             }
         });
+    }
+
+    void openBrandLink(final Brand matchBrand){
+        AlertDialog.Builder builder;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            builder = new AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert);
+        } else {
+            builder = new AlertDialog.Builder(this);
+        }
+        builder.setTitle("Résultat de l'analyse")
+                .setMessage("Le logo sembe appartenir à la marque " + matchBrand.getBrandName() +".Voulez-vous être redirigé vers le site de la marque ?")
+                .setPositiveButton("Oui", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                        Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(matchBrand.getUrl()));
+                        startActivity(browserIntent);
+                    }
+                })
+                .setNegativeButton("Non", new DialogInterface.OnClickListener() {
+                    public void onClick(DialogInterface dialog, int which) {
+                    }
+                })
+                .setIcon(android.R.drawable.ic_dialog_alert)
+                .show();
     }
 
     File BitmapToFile(Bitmap bitmap) throws IOException {
@@ -248,5 +292,19 @@ public class MainActivity extends AppCompatActivity {
         fos.close();
 
         return this.image;
+    }
+
+
+    private void beginCrop(Uri source) {
+        Uri destination = Uri.fromFile(new File(getCacheDir(), "cropped"));
+        Crop.of(source, destination).asSquare().start(this);
+    }
+
+    private void handleCrop(int resultCode, Intent result) {
+        if (resultCode == RESULT_OK) {
+            ImageView.setImageURI(Crop.getOutput(result));
+        } else if (resultCode == Crop.RESULT_ERROR) {
+            Toast.makeText(this, Crop.getError(result).getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 }
