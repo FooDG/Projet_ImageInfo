@@ -143,40 +143,27 @@ public class MainActivity extends AppCompatActivity {
     }
 
     protected void onActivityResult(int requestCode, int resultCode, Intent intent){
-        if(requestCode == PHOTO_LIB_REQUEST && resultCode == RESULT_OK){
+        if(requestCode == IMAGE_CAPTURE_REQUEST && resultCode == RESULT_OK){
             try {
-                processPhotoLibraryResult(intent);
+                Log.w("Capture", "Capture Image");
+                processPhotoCaptureResult(intent);
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
-        if(requestCode == IMAGE_CAPTURE_REQUEST && resultCode == RESULT_OK){
-            processPhotoCaptureResult(intent);
-        }
 
         if (requestCode == Crop.REQUEST_PICK && resultCode == RESULT_OK) {
+            Log.w("PICK", "PICK Image");
             beginCrop(intent.getData());
         } else if (requestCode == Crop.REQUEST_CROP) {
+            Log.w("Crop", "Crop Image");
             handleCrop(resultCode, intent);
         }
     }
 
     protected void startPhotoLibraryActivity(){
-        Intent photoLibraryIntent;
-        photoLibraryIntent = new Intent();
-        /*photoLibraryIntent.setType("image/*");
-        photoLibraryIntent.setAction(Intent.ACTION_GET_CONTENT);
-        startActivityForResult(Intent.createChooser(photoLibraryIntent, "Pick a Picture !"), PHOTO_LIB_REQUEST);*/
-
         Crop.pickImage(this);
-    }
 
-    protected void processPhotoLibraryResult(Intent intent) throws IOException {
-        Uri photoUri = intent.getData();
-        ImageView.setImageURI(photoUri);
-
-        ImagePath = photoUri.getPath();
-        this.image = File.createTempFile("TempImage", ".jpg",getCacheDir());
     }
 
     protected  void  startPhotoCaptureActivity(){
@@ -186,13 +173,12 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    protected void processPhotoCaptureResult(Intent intent){
+    protected void processPhotoCaptureResult(Intent intent) throws IOException {
         Bundle extras = intent.getExtras();
         Bitmap image = (Bitmap) extras.get("data");
-        ImageView.setImageBitmap(image);
-
-        Uri photoUri = intent.getData();
-        beginCrop(photoUri);
+        File imagefile = BitmapToFile(image);
+        Uri imageURI = Uri.fromFile(imagefile);
+        beginCrop(imageURI);
     }
 
     protected void getFilesFromVolley() throws JSONException{
@@ -294,7 +280,6 @@ public class MainActivity extends AppCompatActivity {
         return this.image;
     }
 
-
     private void beginCrop(Uri source) {
         Uri destination = Uri.fromFile(new File(getCacheDir(), "cropped"));
         Crop.of(source, destination).asSquare().start(this);
@@ -302,6 +287,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void handleCrop(int resultCode, Intent result) {
         if (resultCode == RESULT_OK) {
+            ImageView.setImageURI(null);
             ImageView.setImageURI(Crop.getOutput(result));
         } else if (resultCode == Crop.RESULT_ERROR) {
             Toast.makeText(this, Crop.getError(result).getMessage(), Toast.LENGTH_SHORT).show();
