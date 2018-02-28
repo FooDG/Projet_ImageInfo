@@ -226,12 +226,13 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void OnError(VolleyError error) {
+            public void OnError(VolleyError error){
                 Toast.makeText(getBaseContext(), "Impossible de contacter le serveur distant. Veuillez vérifier vos paramètres de connexion", Toast.LENGTH_LONG).show();
                 remote_resources_available = false;
 
                 buttonAnalyser = findViewById(R.id.Analyser);
                 buttonAnalyser.setEnabled(true);
+                buttonAnalyser.setText(R.string.analyser);
             }
         });
     }
@@ -244,7 +245,7 @@ public class MainActivity extends AppCompatActivity {
             builder = new AlertDialog.Builder(this);
         }
         builder.setTitle("Résultat de l'analyse")
-                .setMessage("Le logo sembe appartenir à la marque " + matchBrand.getBrandName() +".Voulez-vous être redirigé vers le site de la marque ?")
+                .setMessage("Le logo semble appartenir à la marque " + matchBrand.getBrandName() +".Voulez-vous être redirigé vers le site de la marque ?")
                 .setPositiveButton("Oui", new DialogInterface.OnClickListener() {
                     public void onClick(DialogInterface dialog, int which) {
                         Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(matchBrand.getUrl()));
