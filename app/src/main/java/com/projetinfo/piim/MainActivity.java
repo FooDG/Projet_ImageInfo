@@ -128,6 +128,7 @@ public class MainActivity extends AppCompatActivity {
         buttonAnalyser.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
+
                 sift= opencv_xfeatures2d.SIFT.create(nFeatures,nOctaveLayers,contrastThreshold,edgeThreshold,sigma);
 
                 Bitmap IVPicture = ((BitmapDrawable)ImageView.getDrawable()).getBitmap();
@@ -135,17 +136,16 @@ public class MainActivity extends AppCompatActivity {
 
                 try {
                     image = imread(BitmapToFile(IVPicture).getAbsolutePath());
+                    Log.w("CLICK","CLICK !!!");
 
-                    buttonAnalyser = (Button) findViewById(R.id.Analyser);
-                    buttonAnalyser.setText(R.string.analyseEnCours);
-                    buttonAnalyser.setEnabled(false);
 
-                    StartAnalysis(image);
+                    String resultat = StartAnalysis(image);
+                    Toast.makeText(buttonAnalyser.getContext(), "" + resultat, Toast.LENGTH_SHORT);
 
-                    buttonAnalyser.setText(R.string.analyser);
-                    buttonAnalyser.setEnabled(true);
+
+
                 } catch (IOException e) {
-                    Toast.makeText(getBaseContext(), "Oops ! Something went wrong", Toast.LENGTH_SHORT);
+                    Toast.makeText(buttonAnalyser.getContext(), "Oops ! Something went wrong", Toast.LENGTH_SHORT);
                     e.printStackTrace();
                 }
             }
@@ -218,8 +218,14 @@ public class MainActivity extends AppCompatActivity {
         beginCrop(imageURI);
     }
 
-    protected void StartAnalysis(opencv_core.Mat PickedImage)   {
+    protected String StartAnalysis(opencv_core.Mat PickedImage)   {
         try {
+            Log.w("Start", "Analysis Started !");
+
+            buttonAnalyser = (Button) findViewById(R.id.Analyser);
+            buttonAnalyser.setText("Analyse en cours...");
+            buttonAnalyser.setEnabled(false);
+
             assetManager = this.getAssets();
             String[] Path = assetManager.list("Pictures");
             Bitmap bmap;
@@ -229,6 +235,7 @@ public class MainActivity extends AppCompatActivity {
             ArrayList<String> tmp_filename = new ArrayList();
 
             for(String filename : Path) {
+                Log.w(filename, "Working on " + filename + "...");
                 bmap = getBitmapFromAsset(this, "Pictures/" +  filename);
                 f = BitmapToFile(bmap);
 
@@ -236,21 +243,38 @@ public class MainActivity extends AppCompatActivity {
                 tmp_result.add(Compare(PickedImage, imread(f.getPath())));
             }
 
+            Log.w("Array", "Array filled !");
+
             Float smallest = tmp_result.get(0);
-            Log.w("Test", "" + smallest);
-            int index= 0;
+
+            Log.w("Test", "" + tmp_result.toString());
+            Log.w("Test", "" + tmp_filename.toString());
+
             for(Float x : tmp_result ){
                 if (x < smallest) {
                     smallest = x;
-                    index++;
                 }
             }
 
-            Log.w("Result", "==> " + tmp_filename.get(index));
+            int index= 0;
+            while(tmp_result.get(index) != smallest) {
+                index++;
+            }
+
+            Log.w("Final Result", "Final Result: " + smallest);
+            Log.w("Final Result", "Final Result: " + tmp_filename.get(index));
+
+            MainActivity.this.buttonAnalyser.setText(R.string.analyser);
+            MainActivity.this.buttonAnalyser.setEnabled(true);
+
+            return tmp_filename.get(index);
 
         }catch (Exception e){
             e.printStackTrace();
+            return null;
         }
+
+
     }
 
 
