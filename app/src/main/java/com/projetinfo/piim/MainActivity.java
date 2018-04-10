@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.drawable.BitmapDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -29,6 +30,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 
 import static org.bytedeco.javacpp.opencv_imgcodecs.IMREAD_COLOR;
 import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
@@ -88,16 +90,13 @@ public class MainActivity extends AppCompatActivity {
 
         opencv_features2d.BFMatcher matcher = new opencv_features2d.BFMatcher();
         opencv_core.DMatchVector matches = new opencv_core.DMatchVector();
-        Log.w("test D0", "D0 : " + descriptors[0].empty());
-        Log.w("test D1", "D1 : " + descriptors[1].empty());
         matcher.match(descriptors[0], descriptors[1], matches);
 
         float dist_moy = 0;
         for(int i=0; i< matches.size(); i++) {
-            Log.w("Calcul", "Calcul => " + dist_moy + "+" + matches.get(i).distance());
             dist_moy = dist_moy + matches.get(i).distance();
         }
-        Log.w("R", "Resultat = " + dist_moy + "/" + matches.size());
+
         dist_moy = dist_moy / matches.size();
         return dist_moy;
     }
@@ -130,9 +129,25 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View v) {
                 sift= opencv_xfeatures2d.SIFT.create(nFeatures,nOctaveLayers,contrastThreshold,edgeThreshold,sigma);
+
+                Bitmap IVPicture = ((BitmapDrawable)ImageView.getDrawable()).getBitmap();
                 opencv_core.Mat image;
-                image = imread(ImagePath);
-                StartAnalysis(image);
+
+                try {
+                    image = imread(BitmapToFile(IVPicture).getAbsolutePath());
+
+                    buttonAnalyser = (Button) findViewById(R.id.Analyser);
+                    buttonAnalyser.setText(R.string.analyseEnCours);
+                    buttonAnalyser.setEnabled(false);
+
+                    StartAnalysis(image);
+
+                    buttonAnalyser.setText(R.string.analyser);
+                    buttonAnalyser.setEnabled(true);
+                } catch (IOException e) {
+                    Toast.makeText(getBaseContext(), "Oops ! Something went wrong", Toast.LENGTH_SHORT);
+                    e.printStackTrace();
+                }
             }
         });
     }
@@ -210,13 +225,29 @@ public class MainActivity extends AppCompatActivity {
             Bitmap bmap;
             File f = null;
 
+            ArrayList<Float> tmp_result = new ArrayList();
+            ArrayList<String> tmp_filename = new ArrayList();
+
             for(String filename : Path) {
                 bmap = getBitmapFromAsset(this, "Pictures/" +  filename);
                 f = BitmapToFile(bmap);
 
-                float result = Compare(PickedImage, imread(f.getPath()));
-                Log.w("Result", "==> " + result);
+                tmp_filename.add(filename);
+                tmp_result.add(Compare(PickedImage, imread(f.getPath())));
             }
+
+            Float smallest = tmp_result.get(0);
+            Log.w("Test", "" + smallest);
+            int index= 0;
+            for(Float x : tmp_result ){
+                if (x < smallest) {
+                    smallest = x;
+                    index++;
+                }
+            }
+
+            Log.w("Result", "==> " + tmp_filename.get(index));
+
         }catch (Exception e){
             e.printStackTrace();
         }
