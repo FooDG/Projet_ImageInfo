@@ -4,6 +4,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.res.AssetManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.MediaStore;
@@ -12,6 +13,9 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.Toast;
+
+import com.soundcloud.android.crop.Crop;
 
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacpp.opencv_calib3d;
@@ -20,6 +24,7 @@ import org.bytedeco.javacpp.opencv_features2d;
 import org.bytedeco.javacpp.opencv_shape;
 import org.bytedeco.javacpp.opencv_xfeatures2d;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -29,6 +34,9 @@ import static org.bytedeco.javacpp.opencv_imgcodecs.IMREAD_COLOR;
 import static org.bytedeco.javacpp.opencv_imgcodecs.imread;
 
 public class MainActivity extends AppCompatActivity {
+
+    public AssetManager assetManager;
+
     final int PHOTO_LIB_REQUEST=1;
     final int IMAGE_CAPTURE_REQUEST = 2;
     int nFeatures = 0;
@@ -44,31 +52,12 @@ public class MainActivity extends AppCompatActivity {
     private ImageView ImageView;
     private String ImagePath;
 
-    public static File ToCache(Context context, String Path, String fileName) {
-        InputStream input;
-        FileOutputStream output;
-        byte[] buffer;
-        String filePath = context.getCacheDir() + "/" + fileName;
-        File file = new File(filePath);
-        Log.w("PATH", "Path :" + file.getPath());
-        AssetManager assetManager = context.getAssets();
+    //boolean for testing process
+    static boolean success;
+    static boolean remote_resources_available;
 
-        try {
-            input = assetManager.open(Path);
-            buffer = new byte[input.available()];
-            input.read(buffer);
-            input.close();
-
-            output = new FileOutputStream(filePath);
-            output.write(buffer);
-            output.close();
-            return file;
-
-        } catch (IOException e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
+    //image to analyse and compare
+    File image = null;
 
     public static float Compare(opencv_core.Mat IMG1, opencv_core.Mat IMG2) {
         int nFeatures = 0;
@@ -148,29 +137,55 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
-    protected void onActivityResult(int requestCode, int resultCode, Intent intent){
-        /*1) requestCde sert à identifier l'origine du résultat pour savoir quel traitement effectuer
-        *       - PHOTO_LIB_REQUEST => Code pour l'activité de chargement d'une image depuis le téléphone*/
-        if(requestCode == PHOTO_LIB_REQUEST && resultCode == RESULT_OK){
-            processPhotoLibraryResult(intent);
+    protected void onDestroy(){
+        super.onDestroy();
+        success = false;
+        remote_resources_available = false;
+        try {
+            File dir = getCacheDir();
+            deleteDir(dir);
+        } catch (Exception e) {}
+    }
+
+    public static boolean deleteDir(File dir) {
+        if (dir != null && dir.isDirectory()) {
+            String[] children = dir.list();
+            for (int i = 0; i < children.length; i++) {
+                boolean cache_success = deleteDir(new File(dir, children[i]));
+                if (!cache_success) {
+                    return false;
+                }
+            }
+            return dir.delete();
+        } else if(dir!= null && dir.isFile()) {
+            return dir.delete();
+        } else {
+            return false;
         }
+    }
+
+    protected void onActivityResult(int requestCode, int resultCode, Intent intent){
         if(requestCode == IMAGE_CAPTURE_REQUEST && resultCode == RESULT_OK){
-            processPhotoCaptureResult(intent);
+            try {
+                Log.w("Capture", "Capture Image");
+                processPhotoCaptureResult(intent);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        if (requestCode == Crop.REQUEST_PICK && resultCode == RESULT_OK) {
+            Log.w("PICK", "PICK Image");
+            beginCrop(intent.getData());
+        } else if (requestCode == Crop.REQUEST_CROP) {
+            Log.w("Crop", "Crop Image");
+            handleCrop(resultCode, intent);
         }
     }
 
     protected void startPhotoLibraryActivity(){
-        Intent photoLibraryIntent;
-        photoLibraryIntent = new Intent();
-        photoLibraryIntent.setType("image/*");
-        photoLibraryIntent.setAction(Intent.ACTION_GET_CONTENT);
-        startActivityForResult(Intent.createChooser(photoLibraryIntent, "Pick a Picture !"), PHOTO_LIB_REQUEST);
-    }
+        Crop.pickImage(this);
 
-    protected void processPhotoLibraryResult(Intent intent) {
-        Uri photoUri = intent.getData();
-        ImageView.setImageURI(photoUri);
-        ImagePath = photoUri.getPath();
     }
 
     protected  void  startPhotoCaptureActivity(){
@@ -180,27 +195,81 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    protected void processPhotoCaptureResult(Intent intent){
+    protected void processPhotoCaptureResult(Intent intent) throws IOException {
         Bundle extras = intent.getExtras();
         Bitmap image = (Bitmap) extras.get("data");
-        ImageView.setImageBitmap(image);
-
-        Uri photoUri = intent.getData();
-        ImagePath = photoUri.getPath();
+        File imagefile = BitmapToFile(image);
+        Uri imageURI = Uri.fromFile(imagefile);
+        beginCrop(imageURI);
     }
 
-    protected void StartAnalysis(opencv_core.Mat PickedImage){
+    protected void StartAnalysis(opencv_core.Mat PickedImage)   {
         try {
-            String[] Path = {"Coca_1.jpg", "jager_1.jpg", "Pepsi_1.jpg"};
+            assetManager = this.getAssets();
+            String[] Path = assetManager.list("Pictures");
+            Bitmap bmap;
+            File f = null;
+
             for(String filename : Path) {
-                Log.w("Name", "Name = " + filename);
-                File f = ToCache(this,  filename,filename);
-                Log.w("PATH", "Path2 :" + f.getPath());
+                bmap = getBitmapFromAsset(this, "Pictures/" +  filename);
+                f = BitmapToFile(bmap);
+
                 float result = Compare(PickedImage, imread(f.getPath()));
-                Log.w("Resultat", "Resultat pour " + filename + " : " + result);
+                Log.w("Result", "==> " + result);
             }
         }catch (Exception e){
             e.printStackTrace();
         }
     }
+
+
+    Bitmap getBitmapFromAsset(Context context, String filePath) {
+        AssetManager assetManager = context.getAssets();
+
+        InputStream istr;
+        Bitmap bitmap = null;
+        try {
+            istr = assetManager.open(filePath);
+            bitmap = BitmapFactory.decodeStream(istr);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return bitmap;
+    }
+
+    File BitmapToFile(Bitmap bitmap) throws IOException {
+
+        //create a file to write bitmap data
+        this.image = new File(this.getCacheDir(), "imagefile");
+
+        //Convert bitmap to byte array
+        Bitmap bmap = bitmap;
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+        bmap.compress(Bitmap.CompressFormat.PNG, 0 /*ignored for PNG*/, bos);
+        byte[] bitmapdata = bos.toByteArray();
+
+        //write the bytes in file
+        FileOutputStream fos = new FileOutputStream(this.image);
+        fos.write(bitmapdata);
+        fos.flush();
+        fos.close();
+
+        return this.image;
+    }
+
+    private void beginCrop(Uri source) {
+        Uri destination = Uri.fromFile(new File(getCacheDir(), "cropped"));
+        Crop.of(source, destination).asSquare().start(this);
+    }
+
+    private void handleCrop(int resultCode, Intent result) {
+        if (resultCode == RESULT_OK) {
+            ImageView.setImageURI(null);
+            ImageView.setImageURI(Crop.getOutput(result));
+        } else if (resultCode == Crop.RESULT_ERROR) {
+            Toast.makeText(this, Crop.getError(result).getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
 }
+
