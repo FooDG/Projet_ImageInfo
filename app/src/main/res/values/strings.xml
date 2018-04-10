@@ -3,4 +3,5 @@
     <string name="analyser">Analyser</string>
     <string name="galerie">Galerie</string>
     <string name="capturer">Capturer</string>
+    <string name="analyseEnCours">Analyse en cours ...</string>
 </resources>
